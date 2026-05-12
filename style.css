@@ -1,86 +1,110 @@
-/* Actualización de estilos para el mapa profesional */
-
-.user-marker-container {
-    position: relative;
-    width: 40px;
-    height: 40px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
+/* ESTILOS DEFINITIVOS LIEBRENAV 3.0 */
+:root {
+    --primary: #2196F3;
+    --bg: #ffffff;
+    --text: #333333;
+    --secondary: #f0f0f0;
+    --border: #e0e0e0;
+    --danger: #f44336;
+    --glass: rgba(255, 255, 255, 0.9);
 }
 
-.user-marker-pulse {
-    position: absolute;
-    width: 100%;
-    height: 100%;
-    background: rgba(33, 150, 243, 0.4);
-    border-radius: 50%;
-    animation: pulse 2s infinite;
+body.dark-mode {
+    --bg: #121212;
+    --text: #ffffff;
+    --secondary: #252525;
+    --border: #333333;
+    --glass: rgba(18, 18, 18, 0.9);
 }
 
-@keyframes pulse {
-    0% { transform: scale(0.5); opacity: 1; }
-    100% { transform: scale(1.5); opacity: 0; }
-}
+* { box-sizing: border-box; margin: 0; padding: 0; }
 
-.user-marker-icon {
-    width: 32px;
-    height: 32px;
-    background: var(--primary);
-    color: white;
-    border-radius: 50%;
-    border: 2px solid white;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    box-shadow: 0 2px 8px rgba(0,0,0,0.3);
-    z-index: 2;
-}
-
-.user-marker-arrow {
-    position: absolute;
-    top: -8px;
-    width: 0;
-    height: 0;
-    border-left: 6px solid transparent;
-    border-right: 6px solid transparent;
-    border-bottom: 10px solid var(--primary-dark);
-    filter: drop-shadow(0 -1px 1px rgba(0,0,0,0.3));
-}
-
-/* Paneles con sombras suaves y bordes redondeados */
-#sidebar, #bottom-panel, #nav-hud .nav-top, #nav-hud .nav-bottom, .modal {
-    box-shadow: 0 4px 20px rgba(0,0,0,0.15);
-    border: 1px solid var(--border);
-}
-
-/* Animación de zoom suave al centrar */
-.mapboxgl-ctrl-group, .maplibregl-ctrl-group {
-    border-radius: 12px;
+body, html {
+    width: 100vw;
+    height: 100vh;
+    font-family: sans-serif;
+    background: var(--bg);
+    color: var(--text);
     overflow: hidden;
-    box-shadow: 0 2px 10px rgba(0,0,0,0.1);
 }
 
-.maplibregl-ctrl button {
-    background-color: var(--bg) !important;
-    color: var(--text) !important;
+#app { width: 100%; height: 100%; position: relative; }
+
+/* Splash */
+#splash {
+    position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+    background: var(--primary); color: white; z-index: 1000;
+    display: flex; align-items: center; justify-content: center;
+    transition: opacity 0.5s ease;
+}
+#splash.fade-out { opacity: 0; pointer-events: none; }
+.splash-logo { text-align: center; }
+
+/* Map */
+#map {
+    position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+    z-index: 1;
 }
 
-/* Ajuste de visibilidad de etiquetas en modo oscuro */
-body.dark-mode .maplibregl-canvas-container {
-    filter: saturate(0.8) brightness(0.9);
+/* Sidebar */
+#sidebar {
+    position: absolute; top: 0; left: 0; width: 280px; height: 100%;
+    background: var(--glass); backdrop-filter: blur(8px);
+    z-index: 100; box-shadow: 2px 0 10px rgba(0,0,0,0.2);
+}
+.sidebar-header { padding: 20px; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; }
+.sidebar-content { padding: 20px; display: flex; flex-direction: column; gap: 20px; }
+
+/* Top Bar */
+#top-bar {
+    position: absolute; top: 10px; left: 10px; right: 10px;
+    z-index: 50; display: flex; gap: 10px;
+}
+.search-container { flex-grow: 1; position: relative; }
+.search-box {
+    background: var(--bg); border-radius: 12px; display: flex;
+    align-items: center; padding: 0 10px; height: 50px;
+    box-shadow: 0 4px 10px rgba(0,0,0,0.1); border: 1px solid var(--border);
+}
+#search-input { flex-grow: 1; border: none; background: transparent; padding: 10px; color: var(--text); outline: none; }
+
+/* Buttons */
+.icon-btn {
+    width: 50px; height: 50px; border-radius: 12px; background: var(--bg);
+    border: 1px solid var(--border); box-shadow: 0 4px 10px rgba(0,0,0,0.1);
+    display: flex; align-items: center; justify-content: center; color: var(--text);
+}
+.btn-primary {
+    background: var(--primary); color: white; padding: 12px; border-radius: 12px;
+    font-weight: bold; border: none; cursor: pointer; display: flex; align-items: center; gap: 10px;
+}
+.fab { border-radius: 50%; background: var(--primary); color: white; border: none; }
+
+#map-controls { position: absolute; bottom: 20px; right: 20px; z-index: 50; }
+
+/* Bottom Panel */
+#bottom-panel {
+    position: absolute; bottom: 0; left: 0; right: 0;
+    background: var(--glass); backdrop-filter: blur(8px);
+    padding: 20px; border-radius: 20px 20px 0 0; z-index: 60;
+    box-shadow: 0 -4px 10px rgba(0,0,0,0.1);
+}
+.summary-info { display: flex; justify-content: space-around; margin-bottom: 15px; font-weight: bold; }
+.route-actions { display: flex; gap: 10px; }
+.route-actions button { flex: 1; }
+
+/* Navigation HUD */
+#nav-hud {
+    position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+    z-index: 80; pointer-events: none; display: flex; flex-direction: column; justify-content: space-between;
+}
+.nav-top {
+    background: var(--primary); color: white; padding: 30px 20px;
+    border-radius: 0 0 20px 20px; pointer-events: auto; text-align: center;
+}
+.nav-bottom {
+    background: var(--glass); padding: 20px; pointer-events: auto;
+    display: flex; justify-content: space-between; align-items: center;
 }
 
-/* Botones flotantes estilo mobile-first */
-.icon-btn.fab {
-    transition: transform 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275), background-color 0.3s;
-}
-
-.icon-btn.fab:hover {
-    transform: scale(1.1);
-}
-
-/* Transición suave para cambio de tema */
-body {
-    transition: background-color 0.3s ease, color 0.3s ease;
-}
+.hidden { display: none !important; }
