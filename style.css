@@ -1,31 +1,28 @@
-/* ESTILOS DEFINITIVOS LIEBRENAV 3.0 */
 :root {
-    --primary: #2196F3;
+    --primary: #007AFF;
+    --primary-dark: #005BB7;
     --bg: #ffffff;
-    --text: #333333;
-    --secondary: #f0f0f0;
-    --border: #e0e0e0;
-    --danger: #f44336;
-    --glass: rgba(255, 255, 255, 0.9);
+    --text: #1C1C1E;
+    --gray: #8E8E93;
+    --glass: rgba(255, 255, 255, 0.92);
+    --hud-bg: rgba(0, 122, 255, 0.95);
+    --shadow: 0 8px 32px rgba(0,0,0,0.12);
 }
 
 body.dark-mode {
-    --bg: #121212;
-    --text: #ffffff;
-    --secondary: #252525;
-    --border: #333333;
-    --glass: rgba(18, 18, 18, 0.9);
+    --bg: #1C1C1E;
+    --text: #F2F2F7;
+    --gray: #636366;
+    --glass: rgba(28, 28, 30, 0.92);
+    --shadow: 0 8px 32px rgba(0,0,0,0.4);
 }
 
-* { box-sizing: border-box; margin: 0; padding: 0; }
+* { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
 
 body, html {
-    width: 100vw;
-    height: 100vh;
-    font-family: sans-serif;
-    background: var(--bg);
-    color: var(--text);
-    overflow: hidden;
+    width: 100vw; height: 100vh;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    background: var(--bg); color: var(--text); overflow: hidden;
 }
 
 #app { width: 100%; height: 100%; position: relative; }
@@ -33,78 +30,98 @@ body, html {
 /* Splash */
 #splash {
     position: fixed; top: 0; left: 0; width: 100%; height: 100%;
-    background: var(--primary); color: white; z-index: 1000;
-    display: flex; align-items: center; justify-content: center;
-    transition: opacity 0.5s ease;
+    background: var(--primary); z-index: 2000; display: flex; align-items: center; justify-content: center;
+    transition: opacity 0.6s ease;
 }
 #splash.fade-out { opacity: 0; pointer-events: none; }
-.splash-logo { text-align: center; }
 
 /* Map */
-#map {
-    position: absolute; top: 0; left: 0; width: 100%; height: 100%;
-    z-index: 1;
+#map { position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 1; }
+
+/* Header & Waypoints */
+#search-header {
+    position: absolute; top: 12px; left: 12px; right: 12px; z-index: 100;
+    display: flex; flex-direction: column; gap: 8px;
+}
+.search-row {
+    display: flex; gap: 8px; background: var(--glass); backdrop-filter: blur(10px);
+    padding: 8px; border-radius: 16px; box-shadow: var(--shadow); border: 1px solid rgba(255,255,255,0.1);
+}
+.input-wrapper { flex: 1; display: flex; align-items: center; gap: 8px; padding: 0 8px; }
+#search-input { flex: 1; border: none; background: transparent; font-size: 16px; color: var(--text); outline: none; }
+.search-icon { color: var(--gray); }
+
+#waypoints-list-ui {
+    background: var(--glass); border-radius: 16px; padding: 8px; box-shadow: var(--shadow);
+    display: flex; flex-direction: column; gap: 4px; max-height: 150px; overflow-y: auto;
+}
+.wp-item { display: flex; align-items: center; gap: 8px; font-size: 14px; padding: 6px; border-radius: 8px; background: rgba(0,0,0,0.05); }
+.wp-item .remove { margin-left: auto; cursor: pointer; color: var(--danger); font-size: 18px; }
+
+#search-results {
+    background: var(--bg); border-radius: 16px; box-shadow: var(--shadow);
+    list-style: none; overflow: hidden; margin-top: 4px;
+}
+#search-results li { padding: 14px 16px; border-bottom: 1px solid var(--gray); cursor: pointer; font-size: 15px; }
+
+/* HUD Top (Garmin Style) */
+#nav-hud { position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 500; pointer-events: none; }
+.hud-top {
+    pointer-events: auto; background: var(--hud-bg); color: white;
+    padding: 24px 16px 12px; border-radius: 0 0 24px 24px; box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+}
+.instruction-box { display: flex; align-items: center; gap: 20px; }
+#nav-icon { font-size: 48px; }
+.instruction-text { display: flex; flex-direction: column; }
+#nav-dist-next { font-size: 28px; font-weight: 800; }
+#nav-text { font-size: 18px; font-weight: 500; opacity: 0.9; }
+.nav-progress { height: 4px; background: rgba(255,255,255,0.2); border-radius: 2px; margin-top: 12px; overflow: hidden; }
+#nav-progress-bar { height: 100%; background: #fff; width: 0%; transition: width 0.3s; }
+
+/* HUD Bottom */
+.hud-bottom {
+    position: absolute; bottom: 0; left: 0; right: 0; pointer-events: auto;
+    background: var(--glass); backdrop-filter: blur(15px); padding: 16px;
+    display: flex; justify-content: space-around; align-items: center;
+    border-radius: 24px 24px 0 0; box-shadow: 0 -4px 20px rgba(0,0,0,0.1);
+}
+.stat-box { display: flex; flex-direction: column; align-items: center; }
+.stat-box.main { transform: translateY(-10px); }
+.stat-box .value { font-size: 24px; font-weight: 800; }
+.stat-box .label { font-size: 10px; font-weight: 700; color: var(--gray); letter-spacing: 1px; }
+.hud-actions { display: flex; gap: 12px; }
+
+/* Route Summary Panel */
+#route-panel {
+    position: absolute; bottom: 20px; left: 12px; right: 12px; z-index: 150;
+    background: var(--glass); backdrop-filter: blur(10px); padding: 20px;
+    border-radius: 24px; box-shadow: var(--shadow); display: flex; flex-direction: column; gap: 16px;
+}
+.route-details { display: flex; justify-content: space-around; border-bottom: 1px solid var(--gray); padding-bottom: 12px; }
+.detail { display: flex; align-items: center; gap: 6px; font-weight: 700; font-size: 18px; }
+.route-buttons { display: flex; gap: 12px; }
+.btn-go {
+    flex: 2; background: var(--primary); color: white; border: none;
+    border-radius: 16px; font-size: 20px; font-weight: 800; padding: 16px;
+}
+.btn-icon {
+    flex: 0.5; background: var(--secondary); color: var(--text);
+    border: none; border-radius: 16px; font-size: 24px;
 }
 
-/* Sidebar */
-#sidebar {
-    position: absolute; top: 0; left: 0; width: 280px; height: 100%;
-    background: var(--glass); backdrop-filter: blur(8px);
-    z-index: 100; box-shadow: 2px 0 10px rgba(0,0,0,0.2);
+/* Floating controls */
+#floating-controls { position: absolute; bottom: 120px; right: 12px; z-index: 100; display: flex; flex-direction: column; gap: 12px; }
+.fab {
+    width: 56px; height: 56px; border-radius: 28px; background: var(--primary); color: white;
+    border: none; box-shadow: var(--shadow); font-size: 24px; cursor: pointer;
 }
-.sidebar-header { padding: 20px; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; }
-.sidebar-content { padding: 20px; display: flex; flex-direction: column; gap: 20px; }
-
-/* Top Bar */
-#top-bar {
-    position: absolute; top: 10px; left: 10px; right: 10px;
-    z-index: 50; display: flex; gap: 10px;
-}
-.search-container { flex-grow: 1; position: relative; }
-.search-box {
-    background: var(--bg); border-radius: 12px; display: flex;
-    align-items: center; padding: 0 10px; height: 50px;
-    box-shadow: 0 4px 10px rgba(0,0,0,0.1); border: 1px solid var(--border);
-}
-#search-input { flex-grow: 1; border: none; background: transparent; padding: 10px; color: var(--text); outline: none; }
-
-/* Buttons */
-.icon-btn {
-    width: 50px; height: 50px; border-radius: 12px; background: var(--bg);
-    border: 1px solid var(--border); box-shadow: 0 4px 10px rgba(0,0,0,0.1);
-    display: flex; align-items: center; justify-content: center; color: var(--text);
-}
-.btn-primary {
-    background: var(--primary); color: white; padding: 12px; border-radius: 12px;
-    font-weight: bold; border: none; cursor: pointer; display: flex; align-items: center; gap: 10px;
-}
-.fab { border-radius: 50%; background: var(--primary); color: white; border: none; }
-
-#map-controls { position: absolute; bottom: 20px; right: 20px; z-index: 50; }
-
-/* Bottom Panel */
-#bottom-panel {
-    position: absolute; bottom: 0; left: 0; right: 0;
-    background: var(--glass); backdrop-filter: blur(8px);
-    padding: 20px; border-radius: 20px 20px 0 0; z-index: 60;
-    box-shadow: 0 -4px 10px rgba(0,0,0,0.1);
-}
-.summary-info { display: flex; justify-content: space-around; margin-bottom: 15px; font-weight: bold; }
-.route-actions { display: flex; gap: 10px; }
-.route-actions button { flex: 1; }
-
-/* Navigation HUD */
-#nav-hud {
-    position: absolute; top: 0; left: 0; width: 100%; height: 100%;
-    z-index: 80; pointer-events: none; display: flex; flex-direction: column; justify-content: space-between;
-}
-.nav-top {
-    background: var(--primary); color: white; padding: 30px 20px;
-    border-radius: 0 0 20px 20px; pointer-events: auto; text-align: center;
-}
-.nav-bottom {
-    background: var(--glass); padding: 20px; pointer-events: auto;
-    display: flex; justify-content: space-between; align-items: center;
-}
+.fab.secondary { background: var(--bg); color: var(--text); }
 
 .hidden { display: none !important; }
+
+/* Toasts */
+#toast {
+    position: fixed; bottom: 150px; left: 50%; transform: translateX(-50%);
+    background: rgba(0,0,0,0.8); color: white; padding: 12px 24px;
+    border-radius: 30px; z-index: 2000; font-size: 14px; font-weight: 600;
+}

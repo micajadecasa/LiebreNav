@@ -6,21 +6,19 @@ let watchId = null;
 let currentSteps = [];
 let stepIndex = 0;
 let totalDistance = 0;
-let distanceCovered = 0;
 
 export function startNavTracking(routeDetails) {
     if (!navigator.geolocation) return;
     currentSteps = routeDetails.steps;
     totalDistance = routeDetails.distance;
     stepIndex = 0;
-    distanceCovered = 0;
 
-    speak("Iniciando navegación. Sigue la ruta trazada.");
+    speak("Navegación iniciada.");
 
     watchId = navigator.geolocation.watchPosition(
         pos => processNav(pos),
         err => console.error(err),
-        { enableHighAccuracy: true, maximumAge: 0 }
+        { enableHighAccuracy: true, frequency: 1000 }
     );
 }
 
@@ -33,13 +31,20 @@ export function stopNavTracking() {
 
 function processNav(pos) {
     const { latitude, longitude, heading, speed } = pos.coords;
+    const spdKmH = Math.round((speed || 0) * 3.6);
     
-    // Rotate and Pitch
-    if (heading !== null) {
-        mapInstance.easeTo({ bearing: heading, pitch: 60, center: [longitude, latitude], duration: 1000 });
-    }
+    // Auto-Rotate & Pitch
+    mapInstance.easeTo({
+        center: [longitude, latitude],
+        bearing: heading !== null ? heading : mapInstance.getBearing(),
+        pitch: 60,
+        zoom: spdKmH > 60 ? 14 : 17,
+        duration: 1000
+    });
 
-    // Progress Bar
+    document.getElementById('nav-speed').innerHTML = `${spdKmH} <small>km/h</small>`;
+    document.getElementById('nav-dist-total').innerHTML = formatDistance(totalDistance);
+
     if (currentSteps[stepIndex]) {
         const step = currentSteps[stepIndex];
         const distToStep = calculateDistance(latitude, longitude, step.maneuver.location[1], step.maneuver.location[0]);
@@ -47,23 +52,22 @@ function processNav(pos) {
         document.getElementById('nav-text').textContent = step.maneuver.instruction;
         document.getElementById('nav-dist-next').textContent = formatDistance(distToStep);
         
-        // Progress (Visual simplification)
-        const progress = Math.min(100, (stepIndex / currentSteps.length) * 100);
+        // Progress bar
+        const progress = (stepIndex / currentSteps.length) * 100;
         document.getElementById('nav-progress-bar').style.width = `${progress}%`;
 
-        if (distToStep < 25) {
+        // Instrucción por voz y vibración
+        if (distToStep < 150 && distToStep > 130) {
+            speak(`En 150 metros, ${step.maneuver.instruction}`);
+            if (navigator.vibrate) navigator.vibrate([200, 100, 200]);
+        }
+
+        if (distToStep < 20) {
             stepIndex++;
-            if (stepIndex < currentSteps.length) {
-                speak(currentSteps[stepIndex].maneuver.instruction);
-                if (localStorage.getItem('pref-vibration') === 'true' && navigator.vibrate) {
-                    navigator.vibrate([200, 100, 200]);
-                }
-            } else {
-                speak("Has llegado a tu destino. Gracias por usar LiebreNav.");
-                if (navigator.vibrate) navigator.vibrate(500);
+            if (stepIndex >= currentSteps.length) {
+                speak("Has llegado a tu destino.");
+                stopNavTracking();
             }
         }
     }
-
-    document.getElementById('nav-speed').innerHTML = `${Math.round((speed || 0) * 3.6)} <small>km/h</small>`;
 }
