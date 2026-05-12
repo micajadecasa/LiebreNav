@@ -1,4 +1,4 @@
-const APP_SCRIPT_URL = 'YOUR_APPS_SCRIPT_URL_HERE'; 
+const APP_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbyyZv-EKqVZtCBH0wG89OrGVNe9sPtWAHwnpuCbAISReP1yhes8Dp9b9QI5a33aoofIgg/exec'; 
 let db;
 
 export function initDB() {
