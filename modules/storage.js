@@ -1,6 +1,6 @@
 import { updateMapStyle } from './map.js';
 
-const APP_SCRIPT_URL = 'YOUR_APPS_SCRIPT_URL_HERE'; // Reemplazar al desplegar
+const APP_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbxtCpQdIJuWaI_LiX4HTcqH-JDqHVAtszlGh329VGKhnNORSWsQTuN99skY5Jxk7v5Ecg/exec'; // Reemplazar al desplegar
 
 export function loadPreferences() {
     const isDark = localStorage.getItem('pref-dark-mode') === 'true';
