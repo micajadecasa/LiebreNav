@@ -3,87 +3,153 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Liebre Nav</title>
+    <title>LiebreNav 3.0</title>
     <link rel="manifest" href="manifest.json">
     <link rel="stylesheet" href="lib/maplibre-gl.css">
     <link rel="stylesheet" href="style.css">
-    <meta name="theme-color" content="#1e1e1e">
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200" />
+    <meta name="theme-color" content="#2196F3">
 </head>
 <body>
+    <!-- Splash Screen -->
+    <div id="splash">
+        <div class="splash-logo">
+            <span class="material-symbols-outlined" style="font-size: 80px; color: #fff;">navigation</span>
+            <h1>LiebreNav</h1>
+            <div class="loader"></div>
+        </div>
+    </div>
+
     <div id="app">
-        <!-- Sidebar / Menú lateral para móvil -->
+        <!-- Banner de Notificaciones -->
+        <div id="status-banner" class="hidden">
+            <span id="status-text">Ruta calculada</span>
+        </div>
+
+        <!-- Sidebar -->
         <nav id="sidebar" class="hidden">
             <div class="sidebar-header">
-                <h2>Menú</h2>
-                <button id="close-menu">✕</button>
+                <h2>LiebreNav</h2>
+                <button id="close-menu" class="material-symbols-outlined">close</button>
             </div>
             <div class="sidebar-content">
-                <button id="btn-rutas-guardadas">Rutas Guardadas</button>
+                <button id="btn-rutas-guardadas" class="btn-primary">
+                    <span class="material-symbols-outlined">history</span> Rutas Guardadas
+                </button>
                 <div class="preferences">
-                    <h3>Preferencias</h3>
-                    <label><input type="checkbox" id="pref-dark-mode"> Modo Oscuro</label>
-                    <label><input type="checkbox" id="pref-voice"> Voz activada</label>
-                    <select id="pref-transport">
-                        <option value="driving">Coche</option>
-                        <option value="motorcycle">Moto</option>
-                        <option value="cycling">Bici</option>
-                        <option value="walking">A pie</option>
-                    </select>
+                    <h3>Ajustes</h3>
+                    <div class="pref-item">
+                        <span class="material-symbols-outlined">dark_mode</span>
+                        <label>Modo Oscuro</label>
+                        <input type="checkbox" id="pref-dark-mode">
+                    </div>
+                    <div class="pref-item">
+                        <span class="material-symbols-outlined">volume_up</span>
+                        <label>Voz</label>
+                        <input type="checkbox" id="pref-voice">
+                    </div>
+                    <div class="pref-item">
+                        <span class="material-symbols-outlined">vibration</span>
+                        <label>Vibración</label>
+                        <input type="checkbox" id="pref-vibration">
+                    </div>
+                    <div class="pref-group">
+                        <span class="material-symbols-outlined">directions_car</span>
+                        <select id="pref-transport">
+                            <option value="driving">Coche</option>
+                            <option value="motorcycle">Moto</option>
+                            <option value="cycling">Bici</option>
+                            <option value="walking">A pie</option>
+                        </select>
+                    </div>
                 </div>
             </div>
         </nav>
 
-        <!-- Cabecera principal -->
+        <!-- Top Bar -->
         <header id="top-bar">
-            <button id="btn-menu">☰</button>
+            <button id="btn-menu" class="icon-btn material-symbols-outlined">menu</button>
             <div class="search-container">
-                <input type="text" id="search-input" placeholder="Buscar destino...">
+                <div class="search-box">
+                    <span class="material-symbols-outlined search-icon">search</span>
+                    <input type="text" id="search-input" placeholder="¿A dónde vamos?">
+                    <button id="btn-add-waypoint" class="material-symbols-outlined" title="Añadir parada">add_location</button>
+                </div>
                 <ul id="search-results" class="hidden"></ul>
+                <div id="waypoints-container" class="hidden">
+                    <ul id="waypoints-list"></ul>
+                </div>
             </div>
         </header>
 
-        <!-- Contenedor del mapa -->
+        <!-- Map -->
         <div id="map"></div>
 
-        <!-- Controles sobre el mapa -->
+        <!-- Floating Controls -->
         <div id="map-controls">
-            <button id="btn-location" title="Mi ubicación">📍</button>
+            <button id="btn-location" class="icon-btn fab" title="Mi ubicación">
+                <span class="material-symbols-outlined">my_location</span>
+            </button>
         </div>
 
-        <!-- Panel Inferior (Ruta e Instrucciones) -->
+        <!-- Navigation HUD -->
+        <div id="nav-hud" class="hidden">
+            <div class="nav-top">
+                <div id="nav-instruction">
+                    <span id="nav-icon" class="material-symbols-outlined">straight</span>
+                    <span id="nav-text">Calculando...</span>
+                </div>
+                <div id="nav-dist-next">0 m</div>
+                <div class="nav-progress-container">
+                    <div id="nav-progress-bar"></div>
+                </div>
+            </div>
+            <div class="nav-bottom">
+                <div class="nav-stats">
+                    <span id="nav-speed">0 <small>km/h</small></span>
+                    <span id="nav-eta">--:--</span>
+                </div>
+                <div class="nav-actions">
+                    <button id="btn-share-route" class="icon-btn transparent material-symbols-outlined">share</button>
+                    <button id="btn-mute-nav" class="icon-btn transparent material-symbols-outlined">volume_up</button>
+                    <button id="btn-stop-nav" class="btn-danger-circle material-symbols-outlined">close</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Bottom Panel -->
         <div id="bottom-panel" class="hidden">
             <div id="route-summary">
-                <span id="route-distance">0 km</span> • <span id="route-time">0 min</span>
+                <div class="summary-info">
+                    <span><span class="material-symbols-outlined">schedule</span> <b id="route-time">0 min</b></span>
+                    <span><span class="material-symbols-outlined">distance</span> <b id="route-distance">0 km</b></span>
+                </div>
                 <div class="route-actions">
-                    <button id="btn-start-nav">Navegar</button>
-                    <button id="btn-save-route">Guardar</button>
-                    <button id="btn-close-route">✕</button>
+                    <button id="btn-start-nav" class="btn-primary">
+                        <span class="material-symbols-outlined">navigation</span> INICIAR
+                    </button>
+                    <button id="btn-save-route" class="btn-secondary material-symbols-outlined">save</button>
+                    <button id="btn-close-route" class="btn-danger material-symbols-outlined">close</button>
                 </div>
-            </div>
-            <div id="nav-mode" class="hidden">
-                <div id="current-instruction">
-                    <span id="turn-icon"></span>
-                    <span id="turn-text">Calculando...</span>
-                </div>
-                <div id="next-turn-dist">0 m</div>
-                <button id="btn-stop-nav">Detener</button>
             </div>
         </div>
 
-        <!-- Modales -->
+        <!-- Modals -->
         <div id="modal-overlay" class="hidden">
             <div id="modal-save" class="modal hidden">
-                <h3>Guardar Ruta</h3>
+                <h3><span class="material-symbols-outlined">bookmark</span> Guardar Ruta</h3>
                 <input type="text" id="route-name" placeholder="Nombre de la ruta">
-                <input type="text" id="route-tags" placeholder="Etiquetas (comas)">
-                <button id="btn-confirm-save">Guardar</button>
-                <button class="btn-cancel-modal">Cancelar</button>
+                <input type="text" id="route-tags" placeholder="Etiquetas (viaje, trabajo...)">
+                <div class="modal-actions">
+                    <button id="btn-confirm-save" class="btn-primary">GUARDAR</button>
+                    <button class="btn-cancel-modal btn-secondary">CANCELAR</button>
+                </div>
             </div>
             <div id="modal-load" class="modal hidden">
-                <h3>Rutas Guardadas</h3>
-                <input type="text" id="search-routes" placeholder="Buscar...">
+                <h3><span class="material-symbols-outlined">history</span> Tus Rutas</h3>
+                <input type="text" id="search-routes" placeholder="Filtrar por nombre...">
                 <ul id="saved-routes-list"></ul>
-                <button class="btn-cancel-modal">Cerrar</button>
+                <button class="btn-cancel-modal btn-secondary">CERRAR</button>
             </div>
         </div>
     </div>

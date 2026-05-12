@@ -1,16 +1,14 @@
 import { initMap } from './modules/map.js';
 import { initUI } from './modules/ui.js';
-import { loadPreferences } from './modules/storage.js';
+import { loadPreferences, initDB } from './modules/storage.js';
 
-document.addEventListener('DOMContentLoaded', () => {
-    // Register Service Worker
+document.addEventListener('DOMContentLoaded', async () => {
     if ('serviceWorker' in navigator) {
-        navigator.serviceWorker.register('./sw.js').catch(err => {
-            console.error('Service Worker registration failed:', err);
-        });
+        navigator.serviceWorker.register('./sw.js').catch(err => console.error('SW Error:', err));
     }
-
+    
+    await initDB();
     loadPreferences();
-    const map = initMap('map');
+    const map = await initMap('map');
     initUI(map);
 });

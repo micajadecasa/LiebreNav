@@ -1,10 +1,17 @@
+let muted = false;
+
 export function speak(text) {
-    if (!localStorage.getItem('pref-voice') || localStorage.getItem('pref-voice') === 'false') return;
+    if (muted || localStorage.getItem('pref-voice') === 'false') return;
     if (!window.speechSynthesis) return;
 
+    window.speechSynthesis.cancel();
     const utterance = new SpeechSynthesisUtterance(text);
     utterance.lang = 'es-ES';
-    
-    window.speechSynthesis.cancel();
+    utterance.rate = 1.0;
     window.speechSynthesis.speak(utterance);
+}
+
+export function toggleMute() {
+    muted = !muted;
+    return muted;
 }

@@ -1,39 +1,32 @@
-let currentRouteData = null;
-
-export async function getRoute(origin, destination, transport) {
+export async function getRoute(points, transport) {
     let profile = 'driving';
-    if (transport === 'cycling' || transport === 'motorcycle') profile = 'bike';
+    if (transport === 'cycling') profile = 'cycling';
     if (transport === 'walking') profile = 'foot';
+    if (transport === 'driving' || transport === 'motorcycle') profile = 'driving';
 
-    const coords = `${origin.lng},${origin.lat};${destination.lng},${destination.lat}`;
-    const url = `https://router.project-osrm.org/route/v1/${profile}/${coords}?overview=full&geometries=geojson&steps=true`;
+    // Format: lng,lat;lng,lat;...
+    const coordsStr = points.map(p => `${p.lng},${p.lat}`).join(';');
+    const url = `https://router.project-osrm.org/route/v1/${profile}/${coordsStr}?overview=full&geometries=geojson&steps=true`;
 
     try {
-        const response = await fetch(url);
-        const data = await response.json();
+        const res = await fetch(url);
+        const data = await res.json();
         
-        if (data.code !== 'Ok') throw new Error('Route not found');
+        if (data.code !== 'Ok') throw new Error('OSRM Error');
 
-        currentRouteData = data.routes[0];
-        
-        const geojson = {
-            type: 'FeatureCollection',
-            features: [{
-                type: 'Feature',
-                properties: {},
-                geometry: currentRouteData.geometry
-            }]
-        };
-
+        const route = data.routes[0];
         return {
-            geojson,
-            distance: currentRouteData.distance, // in meters
-            duration: currentRouteData.duration, // in seconds
-            steps: currentRouteData.legs[0].steps,
+            geojson: {
+                type: 'FeatureCollection',
+                features: [{ type: 'Feature', geometry: route.geometry, properties: {} }]
+            },
+            distance: route.distance,
+            duration: route.duration,
+            steps: route.legs.flatMap(leg => leg.steps), // Merge steps from all legs (waypoints)
             raw: data
         };
     } catch (e) {
-        console.error('Routing error:', e);
+        console.error('Routing Error:', e);
         return null;
     }
 }

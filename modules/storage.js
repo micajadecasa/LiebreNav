@@ -1,28 +1,34 @@
-import { updateMapStyle } from './map.js';
+const APP_SCRIPT_URL = 'YOUR_APPS_SCRIPT_URL_HERE'; 
+let db;
 
-const APP_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbyyZv-EKqVZtCBH0wG89OrGVNe9sPtWAHwnpuCbAISReP1yhes8Dp9b9QI5a33aoofIgg/exec'; // Reemplazar al desplegar
+export function initDB() {
+    return new Promise((resolve, reject) => {
+        const req = indexedDB.open('LiebreNavDB', 1);
+        req.onupgradeneeded = e => {
+            db = e.target.result;
+            if (!db.objectStoreNames.contains('routes')) {
+                db.createObjectStore('routes', { keyPath: 'id' });
+            }
+        };
+        req.onsuccess = e => { db = e.target.result; resolve(); };
+        req.onerror = e => reject(e);
+    });
+}
 
 export function loadPreferences() {
-    const isDark = localStorage.getItem('pref-dark-mode') === 'true';
-    if (isDark) {
+    if (localStorage.getItem('pref-dark-mode') === 'true') {
         document.body.classList.add('dark-mode');
         document.getElementById('pref-dark-mode').checked = true;
     }
-
-    const voice = localStorage.getItem('pref-voice') !== 'false';
-    document.getElementById('pref-voice').checked = voice;
-    if(voice) localStorage.setItem('pref-voice', 'true');
-
-    const transport = localStorage.getItem('pref-transport') || 'driving';
-    document.getElementById('pref-transport').value = transport;
+    document.getElementById('pref-voice').checked = localStorage.getItem('pref-voice') !== 'false';
+    document.getElementById('pref-vibration').checked = localStorage.getItem('pref-vibration') !== 'false';
+    document.getElementById('pref-transport').value = localStorage.getItem('pref-transport') || 'driving';
 }
 
 export function savePreferences(key, value) {
     localStorage.setItem(key, value);
     if (key === 'pref-dark-mode') {
-        if (value === 'true') document.body.classList.add('dark-mode');
-        else document.body.classList.remove('dark-mode');
-        updateMapStyle(value === 'true');
+        document.body.classList.toggle('dark-mode', value === 'true');
     }
 }
 
@@ -34,9 +40,12 @@ export async function saveRouteBackend(routeObj) {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(routeObj)
         });
+        
+        const tx = db.transaction('routes', 'readwrite');
+        tx.objectStore('routes').put(routeObj);
         return true;
     } catch (e) {
-        console.error(e);
+        console.error('Error saving:', e);
         return false;
     }
 }
@@ -44,9 +53,16 @@ export async function saveRouteBackend(routeObj) {
 export async function getRoutesBackend() {
     try {
         const res = await fetch(APP_SCRIPT_URL + '?action=list');
-        return await res.json();
+        const data = await res.json();
+        const tx = db.transaction('routes', 'readwrite');
+        data.forEach(r => tx.objectStore('routes').put(r));
+        return data;
     } catch (e) {
-        console.error(e);
-        return [];
+        console.error('Offline fallback');
+        return new Promise((resolve) => {
+            const tx = db.transaction('routes', 'readonly');
+            const req = tx.objectStore('routes').getAll();
+            req.onsuccess = () => resolve(req.result);
+        });
     }
 }
