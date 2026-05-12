@@ -1,28 +1,42 @@
-const APP_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbyyZv-EKqVZtCBH0wG89OrGVNe9sPtWAHwnpuCbAISReP1yhes8Dp9b9QI5a33aoofIgg/exec'; 
-let db;
+const APP_SCRIPT_URL = 'YOUR_APPS_SCRIPT_URL_HERE'; 
+let db = null;
 
 export function initDB() {
-    return new Promise((resolve, reject) => {
-        const req = indexedDB.open('LiebreNavDB', 1);
-        req.onupgradeneeded = e => {
-            db = e.target.result;
-            if (!db.objectStoreNames.contains('routes')) {
-                db.createObjectStore('routes', { keyPath: 'id' });
-            }
-        };
-        req.onsuccess = e => { db = e.target.result; resolve(); };
-        req.onerror = e => reject(e);
+    return new Promise((resolve) => {
+        try {
+            const req = indexedDB.open('LiebreNavDB', 1);
+            req.onupgradeneeded = e => {
+                const _db = e.target.result;
+                if (!_db.objectStoreNames.contains('routes')) {
+                    _db.createObjectStore('routes', { keyPath: 'id' });
+                }
+            };
+            req.onsuccess = e => { 
+                db = e.target.result; 
+                resolve(); 
+            };
+            req.onerror = e => { 
+                console.warn('IndexedDB no disponible');
+                resolve(); 
+            };
+        } catch (e) {
+            resolve();
+        }
     });
 }
 
 export function loadPreferences() {
-    if (localStorage.getItem('pref-dark-mode') === 'true') {
-        document.body.classList.add('dark-mode');
-        document.getElementById('pref-dark-mode').checked = true;
-    }
-    document.getElementById('pref-voice').checked = localStorage.getItem('pref-voice') !== 'false';
-    document.getElementById('pref-vibration').checked = localStorage.getItem('pref-vibration') !== 'false';
-    document.getElementById('pref-transport').value = localStorage.getItem('pref-transport') || 'driving';
+    try {
+        if (localStorage.getItem('pref-dark-mode') === 'true') {
+            document.body.classList.add('dark-mode');
+            document.getElementById('pref-dark-mode').checked = true;
+        }
+        const voice = document.getElementById('pref-voice');
+        if (voice) voice.checked = localStorage.getItem('pref-voice') !== 'false';
+        
+        const transport = document.getElementById('pref-transport');
+        if (transport) transport.value = localStorage.getItem('pref-transport') || 'driving';
+    } catch (e) { console.warn('Prefs error'); }
 }
 
 export function savePreferences(key, value) {
@@ -34,35 +48,31 @@ export function savePreferences(key, value) {
 
 export async function saveRouteBackend(routeObj) {
     try {
-        const res = await fetch(APP_SCRIPT_URL + '?action=save', {
+        await fetch(APP_SCRIPT_URL + '?action=save', {
             method: 'POST',
             mode: 'no-cors',
-            headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(routeObj)
         });
-        
-        const tx = db.transaction('routes', 'readwrite');
-        tx.objectStore('routes').put(routeObj);
+        if (db) {
+            const tx = db.transaction('routes', 'readwrite');
+            tx.objectStore('routes').put(routeObj);
+        }
         return true;
-    } catch (e) {
-        console.error('Error saving:', e);
-        return false;
-    }
+    } catch (e) { return false; }
 }
 
 export async function getRoutesBackend() {
     try {
         const res = await fetch(APP_SCRIPT_URL + '?action=list');
         const data = await res.json();
-        const tx = db.transaction('routes', 'readwrite');
-        data.forEach(r => tx.objectStore('routes').put(r));
         return data;
     } catch (e) {
-        console.error('Offline fallback');
         return new Promise((resolve) => {
+            if (!db) return resolve([]);
             const tx = db.transaction('routes', 'readonly');
             const req = tx.objectStore('routes').getAll();
             req.onsuccess = () => resolve(req.result);
+            req.onerror = () => resolve([]);
         });
     }
 }
