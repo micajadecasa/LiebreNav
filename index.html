@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Liebre Nav</title>
+    <link rel="manifest" href="manifest.json">
+    <link rel="stylesheet" href="lib/maplibre-gl.css">
+    <link rel="stylesheet" href="style.css">
+    <meta name="theme-color" content="#1e1e1e">
+</head>
+<body>
+    <div id="app">
+        <!-- Sidebar / Menú lateral para móvil -->
+        <nav id="sidebar" class="hidden">
+            <div class="sidebar-header">
+                <h2>Menú</h2>
+                <button id="close-menu">✕</button>
+            </div>
+            <div class="sidebar-content">
+                <button id="btn-rutas-guardadas">Rutas Guardadas</button>
+                <div class="preferences">
+                    <h3>Preferencias</h3>
+                    <label><input type="checkbox" id="pref-dark-mode"> Modo Oscuro</label>
+                    <label><input type="checkbox" id="pref-voice"> Voz activada</label>
+                    <select id="pref-transport">
+                        <option value="driving">Coche</option>
+                        <option value="motorcycle">Moto</option>
+                        <option value="cycling">Bici</option>
+                        <option value="walking">A pie</option>
+                    </select>
+                </div>
+            </div>
+        </nav>
+
+        <!-- Cabecera principal -->
+        <header id="top-bar">
+            <button id="btn-menu">☰</button>
+            <div class="search-container">
+                <input type="text" id="search-input" placeholder="Buscar destino...">
+                <ul id="search-results" class="hidden"></ul>
+            </div>
+        </header>
+
+        <!-- Contenedor del mapa -->
+        <div id="map"></div>
+
+        <!-- Controles sobre el mapa -->
+        <div id="map-controls">
+            <button id="btn-location" title="Mi ubicación">📍</button>
+        </div>
+
+        <!-- Panel Inferior (Ruta e Instrucciones) -->
+        <div id="bottom-panel" class="hidden">
+            <div id="route-summary">
+                <span id="route-distance">0 km</span> • <span id="route-time">0 min</span>
+                <div class="route-actions">
+                    <button id="btn-start-nav">Navegar</button>
+                    <button id="btn-save-route">Guardar</button>
+                    <button id="btn-close-route">✕</button>
+                </div>
+            </div>
+            <div id="nav-mode" class="hidden">
+                <div id="current-instruction">
+                    <span id="turn-icon"></span>
+                    <span id="turn-text">Calculando...</span>
+                </div>
+                <div id="next-turn-dist">0 m</div>
+                <button id="btn-stop-nav">Detener</button>
+            </div>
+        </div>
+
+        <!-- Modales -->
+        <div id="modal-overlay" class="hidden">
+            <div id="modal-save" class="modal hidden">
+                <h3>Guardar Ruta</h3>
+                <input type="text" id="route-name" placeholder="Nombre de la ruta">
+                <input type="text" id="route-tags" placeholder="Etiquetas (comas)">
+                <button id="btn-confirm-save">Guardar</button>
+                <button class="btn-cancel-modal">Cancelar</button>
+            </div>
+            <div id="modal-load" class="modal hidden">
+                <h3>Rutas Guardadas</h3>
+                <input type="text" id="search-routes" placeholder="Buscar...">
+                <ul id="saved-routes-list"></ul>
+                <button class="btn-cancel-modal">Cerrar</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="lib/maplibre-gl.js"></script>
+    <script type="module" src="app.js"></script>
+</body>
+</html>
