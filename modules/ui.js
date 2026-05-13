@@ -1,36 +1,45 @@
-import { mapInstance, drawRoute, clearRoute, updateUserMarker } from './map.js';
+import { centerOnUser, drawRoute, clearRoute } from './map.js';
 import { searchLocation } from './geocode.js';
 import { getRoute } from './routing.js';
-import { startNavTracking, stopNavTracking } from './navigation.js';
-import { savePreferences, saveRouteBackend } from './storage.js';
-import { formatDistance, formatTime } from './utils.js';
+import { savePreferences, saveRouteBackend, getRoutesBackend } from './storage.js';
+import { speak } from './voice.js';
 
-let points = []; // Array of {lat, lng, name}
+let currentOrigin = null;
+let currentDestination = null;
 let currentRouteDetails = null;
+let navInterval = null;
 
 export function initUI(map) {
-    // Splash
-    setTimeout(() => document.getElementById('splash').classList.add('fade-out'), 1200);
-
-    // Sidebar
-    document.getElementById('btn-menu').addEventListener('click', () => document.getElementById('sidebar').classList.remove('hidden'));
-    document.getElementById('close-menu').addEventListener('click', () => document.getElementById('sidebar').classList.add('hidden'));
-
-    // Transport Change
-    document.getElementById('pref-transport').addEventListener('change', (e) => {
-        savePreferences('pref-transport', e.target.value);
-        if (points.length >= 2) calculateAndShowRoute();
+    // Menu
+    document.getElementById('btn-menu').addEventListener('click', () => {
+        document.getElementById('sidebar').classList.remove('hidden');
+    });
+    document.getElementById('close-menu').addEventListener('click', () => {
+        document.getElementById('sidebar').classList.add('hidden');
     });
 
-    // Search Logic
+    // Preferences
+    document.getElementById('pref-dark-mode').addEventListener('change', (e) => {
+        savePreferences('pref-dark-mode', e.target.checked);
+    });
+    document.getElementById('pref-voice').addEventListener('change', (e) => {
+        savePreferences('pref-voice', e.target.checked);
+    });
+    document.getElementById('pref-transport').addEventListener('change', (e) => {
+        savePreferences('pref-transport', e.target.value);
+    });
+
+    // Location
+    document.getElementById('btn-location').addEventListener('click', centerOnUser);
+    setTimeout(centerOnUser, 1000);
+
+    // Search
+    let searchTimeout;
     const searchInput = document.getElementById('search-input');
     const searchResults = document.getElementById('search-results');
-    const btnAddStop = document.getElementById('btn-add-stop');
-    let searchTimeout;
 
-    searchInput.addEventListener('input', e => {
+    searchInput.addEventListener('input', (e) => {
         clearTimeout(searchTimeout);
-        if (!e.target.value) { searchResults.classList.add('hidden'); return; }
         searchTimeout = setTimeout(async () => {
             const results = await searchLocation(e.target.value);
             searchResults.innerHTML = '';
@@ -39,124 +48,154 @@ export function initUI(map) {
                 results.forEach(res => {
                     const li = document.createElement('li');
                     li.textContent = res.display_name;
-                    li.addEventListener('click', () => handleSelectResult(res));
+                    li.addEventListener('click', () => selectDestination(res));
                     searchResults.appendChild(li);
                 });
+            } else {
+                searchResults.classList.add('hidden');
             }
-        }, 400);
+        }, 500);
     });
 
-    function handleSelectResult(res) {
-        const point = { lat: parseFloat(res.lat), lng: parseFloat(res.lon), name: res.display_name };
-        searchResults.classList.add('hidden');
+    // Routing UI Actions
+    document.getElementById('btn-close-route').addEventListener('click', () => {
+        document.getElementById('bottom-panel').classList.add('hidden');
+        document.getElementById('map-controls').classList.remove('shifted');
+        clearRoute();
+        currentRouteDetails = null;
         searchInput.value = '';
-        
-        // Si no hay puntos, el primero es mi ubicación (o el origen buscado)
-        if (points.length === 0) {
-            navigator.geolocation.getCurrentPosition(pos => {
-                points = [
-                    { lat: pos.coords.latitude, lng: pos.coords.longitude, name: 'Mi ubicación' },
-                    point
-                ];
-                updateWaypointsUI();
-                calculateAndShowRoute();
-            });
-        } else {
-            // Añadir al final (como destino)
-            points.push(point);
-            updateWaypointsUI();
-            calculateAndShowRoute();
-        }
-    }
-
-    btnAddStop.addEventListener('click', () => {
-        searchInput.focus();
-        showToast('Busca una parada intermedia');
     });
 
-    // Navigation Controls
-    document.getElementById('btn-location').addEventListener('click', () => {
-        navigator.geolocation.getCurrentPosition(pos => {
-            mapInstance.flyTo({ center: [pos.coords.longitude, pos.coords.latitude], zoom: 17, pitch: 60 });
-            updateUserMarker(pos.coords.longitude, pos.coords.latitude);
+    document.getElementById('btn-start-nav').addEventListener('click', startNavigation);
+    document.getElementById('btn-stop-nav').addEventListener('click', stopNavigation);
+
+    // Save Route
+    document.getElementById('btn-save-route').addEventListener('click', () => {
+        document.getElementById('modal-overlay').classList.remove('hidden');
+        document.getElementById('modal-save').classList.remove('hidden');
+    });
+
+    document.getElementById('btn-confirm-save').addEventListener('click', async () => {
+        if(!currentRouteDetails) return;
+        const name = document.getElementById('route-name').value;
+        const tags = document.getElementById('route-tags').value.split(',');
+        const routeObj = {
+            id: crypto.randomUUID(),
+            nombre: name,
+            origen: JSON.stringify(currentOrigin),
+            destino: JSON.stringify(currentDestination),
+            waypoints: [],
+            ruta_geojson: currentRouteDetails.geojson,
+            fecha: new Date().toISOString(),
+            etiquetas: tags
+        };
+        await saveRouteBackend(routeObj);
+        closeModals();
+        alert('Ruta guardada');
+    });
+
+    // Load Routes
+    document.getElementById('btn-rutas-guardadas').addEventListener('click', async () => {
+        document.getElementById('sidebar').classList.add('hidden');
+        document.getElementById('modal-overlay').classList.remove('hidden');
+        document.getElementById('modal-load').classList.remove('hidden');
+        const list = document.getElementById('saved-routes-list');
+        list.innerHTML = '<li>Cargando...</li>';
+        
+        const routes = await getRoutesBackend();
+        list.innerHTML = '';
+        routes.forEach(r => {
+            const li = document.createElement('li');
+            li.innerHTML = `<span>${r.nombre}</span> <button>Cargar</button>`;
+            li.querySelector('button').addEventListener('click', () => {
+                closeModals();
+                drawRoute(r.ruta_geojson);
+                document.getElementById('route-distance').textContent = 'Ruta Cargada';
+                document.getElementById('route-time').textContent = '';
+                document.getElementById('bottom-panel').classList.remove('hidden');
+                document.getElementById('map-controls').classList.add('shifted');
+            });
+            list.appendChild(li);
         });
     });
 
-    document.getElementById('btn-start-nav').addEventListener('click', () => {
-        if (!currentRouteDetails) return;
-        document.getElementById('nav-hud').classList.remove('hidden');
-        document.getElementById('route-panel').classList.add('hidden');
-        document.getElementById('search-header').classList.add('hidden');
-        startNavTracking(currentRouteDetails);
-    });
-
-    document.getElementById('btn-stop-nav').addEventListener('click', () => {
-        document.getElementById('nav-hud').classList.add('hidden');
-        document.getElementById('search-header').classList.remove('hidden');
-        stopNavTracking();
-    });
-
-    document.getElementById('btn-clear-route').addEventListener('click', () => {
-        points = [];
-        updateWaypointsUI();
-        clearRoute();
-        document.getElementById('route-panel').classList.add('hidden');
+    // Modals
+    document.querySelectorAll('.btn-cancel-modal').forEach(btn => {
+        btn.addEventListener('click', closeModals);
     });
 }
 
-function updateWaypointsUI() {
-    const container = document.getElementById('waypoints-list-ui');
-    const btnAdd = document.getElementById('btn-add-stop');
+async function selectDestination(place) {
+    document.getElementById('search-results').classList.add('hidden');
+    document.getElementById('search-input').value = place.display_name;
     
-    if (points.length < 2) {
-        container.classList.add('hidden');
-        btnAdd.classList.add('hidden');
-        return;
-    }
-
-    container.classList.remove('hidden');
-    btnAdd.classList.remove('hidden');
-    container.innerHTML = '';
+    currentDestination = { lat: parseFloat(place.lat), lng: parseFloat(place.lon) };
     
-    // Solo mostramos las paradas intermedias y el destino (quitamos el origen de la lista visual si es "Mi ubicación")
-    points.forEach((p, i) => {
-        if (i === 0) return; // Ocultar origen de la lista de edición
-        const div = document.createElement('div');
-        div.className = 'wp-item';
-        div.innerHTML = `
-            <span class="material-symbols-outlined">${i === points.length - 1 ? 'location_on' : 'more_vert'}</span>
-            <span class="wp-name">${p.name.split(',')[0]}</span>
-            <span class="material-symbols-outlined remove" onclick="window.removeWaypoint(${i})">cancel</span>
-        `;
-        container.appendChild(div);
+    navigator.geolocation.getCurrentPosition(async pos => {
+        currentOrigin = { lat: pos.coords.latitude, lng: pos.coords.longitude };
+        const transport = document.getElementById('pref-transport').value;
+        
+        const route = await getRoute(currentOrigin, currentDestination, transport);
+        if (route) {
+            currentRouteDetails = route;
+            drawRoute(route.geojson);
+            
+            const distKm = (route.distance / 1000).toFixed(1);
+            const timeMin = Math.round(route.duration / 60);
+            
+            document.getElementById('route-distance').textContent = `${distKm} km`;
+            document.getElementById('route-time').textContent = `${timeMin} min`;
+            
+            document.getElementById('bottom-panel').classList.remove('hidden');
+            document.getElementById('map-controls').classList.add('shifted');
+            document.getElementById('route-summary').classList.remove('hidden');
+            document.getElementById('nav-mode').classList.add('hidden');
+        }
     });
 }
 
-// Global para que funcione el onclick
-window.removeWaypoint = (index) => {
-    points.splice(index, 1);
-    updateWaypointsUI();
-    if (points.length >= 2) calculateAndShowRoute();
-    else clearRoute();
-};
+function startNavigation() {
+    document.getElementById('route-summary').classList.add('hidden');
+    document.getElementById('nav-mode').classList.remove('hidden');
+    
+    let currentStepIndex = 0;
+    const steps = currentRouteDetails.steps;
 
-async function calculateAndShowRoute() {
-    if (points.length < 2) return;
-    const transport = document.getElementById('pref-transport').value;
-    const route = await getRoute(points, transport);
-    if (route) {
-        currentRouteDetails = route;
-        drawRoute(route.geojson);
-        document.getElementById('route-distance').textContent = formatDistance(route.distance);
-        document.getElementById('route-time').textContent = formatTime(route.duration);
-        document.getElementById('route-panel').classList.remove('hidden');
-        document.getElementById('btn-overview').classList.remove('hidden');
-    }
+    const updateNav = () => {
+        if (currentStepIndex >= steps.length) {
+            stopNavigation();
+            speak("Has llegado a tu destino");
+            return;
+        }
+
+        const step = steps[currentStepIndex];
+        const instruction = step.maneuver.instruction || "Continúa";
+        document.getElementById('turn-text').textContent = instruction;
+        document.getElementById('next-turn-dist').textContent = `${Math.round(step.distance)} m`;
+        
+        if (!navInterval) {
+            speak(instruction);
+        }
+    };
+
+    updateNav();
+    
+    navInterval = setInterval(() => {
+        currentStepIndex++;
+        updateNav();
+        if(currentStepIndex < steps.length) speak(steps[currentStepIndex].maneuver.instruction || "Continúa");
+    }, 15000);
 }
 
-export function showToast(text) {
-    const t = document.getElementById('toast');
-    t.textContent = text;
-    t.classList.remove('hidden');
-    setTimeout(() => t.classList.add('hidden'), 3000);
+function stopNavigation() {
+    document.getElementById('route-summary').classList.remove('hidden');
+    document.getElementById('nav-mode').classList.add('hidden');
+    clearInterval(navInterval);
+    navInterval = null;
+}
+
+function closeModals() {
+    document.getElementById('modal-overlay').classList.add('hidden');
+    document.getElementById('modal-save').classList.add('hidden');
+    document.getElementById('modal-load').classList.add('hidden');
 }
