@@ -1,201 +1,205 @@
-import { centerOnUser, drawRoute, clearRoute } from './map.js';
+import { mapInstance, drawRoute, clearRoute, updateUserMarker } from './map.js';
 import { searchLocation } from './geocode.js';
 import { getRoute } from './routing.js';
+import { startNavTracking, stopNavTracking, repeatCurrentInstruction } from './navigation.js';
 import { savePreferences, saveRouteBackend, getRoutesBackend } from './storage.js';
-import { speak } from './voice.js';
+import { formatDistance, formatTime } from './utils.js';
 
-let currentOrigin = null;
-let currentDestination = null;
+let points = []; 
 let currentRouteDetails = null;
-let navInterval = null;
 
 export function initUI(map) {
-    // Menu
-    document.getElementById('btn-menu').addEventListener('click', () => {
-        document.getElementById('sidebar').classList.remove('hidden');
-    });
-    document.getElementById('close-menu').addEventListener('click', () => {
-        document.getElementById('sidebar').classList.add('hidden');
-    });
+    const elements = {
+        sidebar: document.getElementById('sidebar'),
+        btnMenu: document.getElementById('btn-menu'),
+        btnCloseSidebar: document.getElementById('btn-close-sidebar'),
+        btnOpenSaved: document.getElementById('btn-open-saved'),
+        searchInput: document.getElementById('search-input'),
+        searchResults: document.getElementById('search-results'),
+        btnAddWaypoint: document.getElementById('btn-add-waypoint'),
+        btnLocation: document.getElementById('btn-location'),
+        btnNavLocation: document.getElementById('btn-nav-location'), // Nuevo ID
+        btnRepeatInstruction: document.getElementById('btn-repeat-instruction'), // Nuevo ID
+        btnStartNav: document.getElementById('btn-start-nav'),
+        btnStopNav: document.getElementById('btn-stop-nav'),
+        btnSaveRoute: document.getElementById('btn-save-route'),
+        btnClearRoute: document.getElementById('btn-clear-route'),
+        modalOverlay: document.getElementById('modal-overlay'),
+        modalSave: document.getElementById('modal-save'),
+        modalLoad: document.getElementById('modal-load'),
+        btnConfirmSave: document.getElementById('btn-confirm-save'),
+        btnCancelSave: document.getElementById('btn-cancel-save'),
+        btnCloseLoad: document.getElementById('btn-close-load'),
+        prefTransport: document.getElementById('pref-transport')
+    };
 
-    // Preferences
-    document.getElementById('pref-dark-mode').addEventListener('change', (e) => {
-        savePreferences('pref-dark-mode', e.target.checked);
-    });
-    document.getElementById('pref-voice').addEventListener('change', (e) => {
-        savePreferences('pref-voice', e.target.checked);
-    });
-    document.getElementById('pref-transport').addEventListener('change', (e) => {
-        savePreferences('pref-transport', e.target.value);
-    });
+    // Splash
+    setTimeout(() => document.getElementById('splash')?.classList.add('fade-out'), 1500);
 
-    // Location
-    document.getElementById('btn-location').addEventListener('click', centerOnUser);
-    setTimeout(centerOnUser, 1000);
+    // Sidebar
+    elements.btnMenu?.addEventListener('click', () => elements.sidebar.classList.remove('hidden'));
+    elements.btnCloseSidebar?.addEventListener('click', () => elements.sidebar.classList.add('hidden'));
 
-    // Search
+    // Búsqueda
     let searchTimeout;
-    const searchInput = document.getElementById('search-input');
-    const searchResults = document.getElementById('search-results');
-
-    searchInput.addEventListener('input', (e) => {
+    elements.searchInput?.addEventListener('input', e => {
         clearTimeout(searchTimeout);
+        if (!e.target.value) { elements.searchResults.classList.add('hidden'); return; }
         searchTimeout = setTimeout(async () => {
             const results = await searchLocation(e.target.value);
-            searchResults.innerHTML = '';
+            elements.searchResults.innerHTML = '';
             if (results.length > 0) {
-                searchResults.classList.remove('hidden');
+                elements.searchResults.classList.remove('hidden');
                 results.forEach(res => {
                     const li = document.createElement('li');
                     li.textContent = res.display_name;
-                    li.addEventListener('click', () => selectDestination(res));
-                    searchResults.appendChild(li);
+                    li.onclick = () => handleSelectResult(res);
+                    elements.searchResults.appendChild(li);
                 });
-            } else {
-                searchResults.classList.add('hidden');
             }
-        }, 500);
+        }, 400);
     });
 
-    // Routing UI Actions
-    document.getElementById('btn-close-route').addEventListener('click', () => {
-        document.getElementById('bottom-panel').classList.add('hidden');
-        document.getElementById('map-controls').classList.remove('shifted');
-        clearRoute();
-        currentRouteDetails = null;
-        searchInput.value = '';
+    async function handleSelectResult(res) {
+        const point = { lat: parseFloat(res.lat), lng: parseFloat(res.lon), name: res.display_name };
+        elements.searchResults.classList.add('hidden');
+        elements.searchInput.value = '';
+
+        if (points.length === 0) {
+            navigator.geolocation.getCurrentPosition(pos => {
+                points = [{ lat: pos.coords.latitude, lng: pos.coords.longitude, name: 'Mi ubicación' }, point];
+                updateWaypointsUI();
+                calculateAndShowRoute();
+            }, () => {
+                points = [point];
+                showToast("GPS no disponible");
+            });
+        } else {
+            points.push(point);
+            updateWaypointsUI();
+            calculateAndShowRoute();
+        }
+    }
+
+    elements.btnAddWaypoint?.addEventListener('click', () => {
+        elements.searchInput.focus();
+        showToast("Escribe la parada");
     });
 
-    document.getElementById('btn-start-nav').addEventListener('click', startNavigation);
-    document.getElementById('btn-stop-nav').addEventListener('click', stopNavigation);
-
-    // Save Route
-    document.getElementById('btn-save-route').addEventListener('click', () => {
-        document.getElementById('modal-overlay').classList.remove('hidden');
-        document.getElementById('modal-save').classList.remove('hidden');
+    // Repetir Indicación (Mute btn antiguo)
+    elements.btnRepeatInstruction?.addEventListener('click', () => {
+        repeatCurrentInstruction();
     });
 
-    document.getElementById('btn-confirm-save').addEventListener('click', async () => {
-        if(!currentRouteDetails) return;
-        const name = document.getElementById('route-name').value;
-        const tags = document.getElementById('route-tags').value.split(',');
-        const routeObj = {
-            id: crypto.randomUUID(),
-            nombre: name,
-            origen: JSON.stringify(currentOrigin),
-            destino: JSON.stringify(currentDestination),
-            waypoints: [],
-            ruta_geojson: currentRouteDetails.geojson,
-            fecha: new Date().toISOString(),
-            etiquetas: tags
-        };
-        await saveRouteBackend(routeObj);
-        closeModals();
-        alert('Ruta guardada');
-    });
+    // Mi ubicación (HUD y Mapa)
+    const centerUser = () => {
+        navigator.geolocation.getCurrentPosition(pos => {
+            mapInstance.flyTo({ center: [pos.coords.longitude, pos.coords.latitude], zoom: 18, pitch: 70 });
+            updateUserMarker(pos.coords.longitude, pos.coords.latitude);
+        });
+    };
+    elements.btnLocation?.addEventListener('click', centerUser);
+    elements.btnNavLocation?.addEventListener('click', centerUser);
 
-    // Load Routes
-    document.getElementById('btn-rutas-guardadas').addEventListener('click', async () => {
-        document.getElementById('sidebar').classList.add('hidden');
-        document.getElementById('modal-overlay').classList.remove('hidden');
-        document.getElementById('modal-load').classList.remove('hidden');
+    // Guardado y Carga
+    elements.btnOpenSaved?.addEventListener('click', async () => {
+        elements.sidebar.classList.add('hidden');
+        elements.modalOverlay.classList.remove('hidden');
+        elements.modalLoad.classList.remove('hidden');
         const list = document.getElementById('saved-routes-list');
-        list.innerHTML = '<li>Cargando...</li>';
-        
+        list.innerHTML = '<li>Buscando...</li>';
         const routes = await getRoutesBackend();
-        list.innerHTML = '';
+        list.innerHTML = routes.length ? '' : '<li>Vacío</li>';
         routes.forEach(r => {
             const li = document.createElement('li');
-            li.innerHTML = `<span>${r.nombre}</span> <button>Cargar</button>`;
-            li.querySelector('button').addEventListener('click', () => {
+            li.innerHTML = `<span>${r.nombre}</span> <button>CARGAR</button>`;
+            li.querySelector('button').onclick = () => {
                 closeModals();
                 drawRoute(r.ruta_geojson);
-                document.getElementById('route-distance').textContent = 'Ruta Cargada';
-                document.getElementById('route-time').textContent = '';
+                currentRouteDetails = { geojson: r.ruta_geojson, distance: 0, duration: 0, steps: [] };
                 document.getElementById('bottom-panel').classList.remove('hidden');
-                document.getElementById('map-controls').classList.add('shifted');
-            });
+            };
             list.appendChild(li);
         });
     });
 
-    // Modals
-    document.querySelectorAll('.btn-cancel-modal').forEach(btn => {
-        btn.addEventListener('click', closeModals);
+    elements.btnSaveRoute?.addEventListener('click', () => {
+        elements.modalOverlay.classList.remove('hidden');
+        elements.modalSave.classList.remove('hidden');
+    });
+
+    elements.btnConfirmSave?.addEventListener('click', async () => {
+        const name = document.getElementById('route-name').value || 'Ruta';
+        const routeObj = {
+            id: crypto.randomUUID(), nombre: name, origen: points[0]?.name, destino: points[points.length-1]?.name,
+            waypoints: points.slice(1, -1).map(p => p.name), ruta_geojson: currentRouteDetails.geojson, fecha: new Date().toISOString()
+        };
+        if (await saveRouteBackend(routeObj)) { showToast("Guardada"); closeModals(); }
+    });
+
+    // Navegación
+    elements.btnStartNav?.addEventListener('click', () => {
+        document.getElementById('nav-hud').classList.remove('hidden');
+        document.getElementById('bottom-panel').classList.add('hidden');
+        document.getElementById('top-bar').classList.add('hidden');
+        startNavTracking(currentRouteDetails);
+    });
+
+    elements.btnStopNav?.addEventListener('click', () => {
+        document.getElementById('nav-hud').classList.add('hidden');
+        document.getElementById('top-bar').classList.remove('hidden');
+        stopNavTracking();
+    });
+
+    elements.btnClearRoute?.addEventListener('click', () => {
+        points = []; updateWaypointsUI(); clearRoute();
+        document.getElementById('bottom-panel').classList.add('hidden');
+    });
+
+    elements.btnCancelSave?.addEventListener('click', closeModals);
+    elements.btnCloseLoad?.addEventListener('click', closeModals);
+}
+
+function updateWaypointsUI() {
+    const container = document.getElementById('waypoints-container');
+    const list = document.getElementById('waypoints-list');
+    const btnAdd = document.getElementById('btn-add-waypoint');
+    if (points.length < 2) { container.classList.add('hidden'); btnAdd.classList.add('hidden'); return; }
+    container.classList.remove('hidden'); btnAdd.classList.remove('hidden');
+    list.innerHTML = '';
+    points.forEach((p, i) => {
+        if (i === 0) return;
+        const li = document.createElement('li');
+        li.innerHTML = `<span>${p.name.split(',')[0]}</span> <button onclick="window.removeWaypoint(${i})">X</button>`;
+        list.appendChild(li);
     });
 }
 
-async function selectDestination(place) {
-    document.getElementById('search-results').classList.add('hidden');
-    document.getElementById('search-input').value = place.display_name;
-    
-    currentDestination = { lat: parseFloat(place.lat), lng: parseFloat(place.lon) };
-    
-    navigator.geolocation.getCurrentPosition(async pos => {
-        currentOrigin = { lat: pos.coords.latitude, lng: pos.coords.longitude };
-        const transport = document.getElementById('pref-transport').value;
-        
-        const route = await getRoute(currentOrigin, currentDestination, transport);
-        if (route) {
-            currentRouteDetails = route;
-            drawRoute(route.geojson);
-            
-            const distKm = (route.distance / 1000).toFixed(1);
-            const timeMin = Math.round(route.duration / 60);
-            
-            document.getElementById('route-distance').textContent = `${distKm} km`;
-            document.getElementById('route-time').textContent = `${timeMin} min`;
-            
-            document.getElementById('bottom-panel').classList.remove('hidden');
-            document.getElementById('map-controls').classList.add('shifted');
-            document.getElementById('route-summary').classList.remove('hidden');
-            document.getElementById('nav-mode').classList.add('hidden');
-        }
-    });
-}
+window.removeWaypoint = (index) => {
+    points.splice(index, 1); updateWaypointsUI();
+    if (points.length >= 2) calculateAndShowRoute();
+    else clearRoute();
+};
 
-function startNavigation() {
-    document.getElementById('route-summary').classList.add('hidden');
-    document.getElementById('nav-mode').classList.remove('hidden');
-    
-    let currentStepIndex = 0;
-    const steps = currentRouteDetails.steps;
-
-    const updateNav = () => {
-        if (currentStepIndex >= steps.length) {
-            stopNavigation();
-            speak("Has llegado a tu destino");
-            return;
-        }
-
-        const step = steps[currentStepIndex];
-        const instruction = step.maneuver.instruction || "Continúa";
-        document.getElementById('turn-text').textContent = instruction;
-        document.getElementById('next-turn-dist').textContent = `${Math.round(step.distance)} m`;
-        
-        if (!navInterval) {
-            speak(instruction);
-        }
-    };
-
-    updateNav();
-    
-    navInterval = setInterval(() => {
-        currentStepIndex++;
-        updateNav();
-        if(currentStepIndex < steps.length) speak(steps[currentStepIndex].maneuver.instruction || "Continúa");
-    }, 15000);
-}
-
-function stopNavigation() {
-    document.getElementById('route-summary').classList.remove('hidden');
-    document.getElementById('nav-mode').classList.add('hidden');
-    clearInterval(navInterval);
-    navInterval = null;
+async function calculateAndShowRoute() {
+    if (points.length < 2) return;
+    const transport = document.getElementById('pref-transport').value;
+    const route = await getRoute(points, transport);
+    if (route) {
+        currentRouteDetails = route; drawRoute(route.geojson);
+        document.getElementById('route-time').textContent = formatTime(route.duration);
+        document.getElementById('route-distance').textContent = formatDistance(route.distance);
+        document.getElementById('bottom-panel').classList.remove('hidden');
+    }
 }
 
 function closeModals() {
     document.getElementById('modal-overlay').classList.add('hidden');
     document.getElementById('modal-save').classList.add('hidden');
     document.getElementById('modal-load').classList.add('hidden');
+}
+
+export function showToast(text) {
+    const t = document.getElementById('toast');
+    if (t) { t.textContent = text; t.classList.remove('hidden'); setTimeout(() => t.classList.add('hidden'), 3000); }
 }

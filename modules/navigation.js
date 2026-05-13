@@ -13,7 +13,7 @@ export function startNavTracking(routeDetails) {
     totalDistance = routeDetails.distance;
     stepIndex = 0;
 
-    speak("Navegación iniciada.");
+    speak("Iniciando navegación profesional.");
 
     watchId = navigator.geolocation.watchPosition(
         pos => processNav(pos),
@@ -29,22 +29,31 @@ export function stopNavTracking() {
     mapInstance.setBearing(0);
 }
 
+// Nueva función para repetir la instrucción actual
+export function repeatCurrentInstruction() {
+    if (currentSteps[stepIndex]) {
+        const instr = currentSteps[stepIndex].maneuver.instruction;
+        speak(instr);
+    } else {
+        speak("Continúa por la ruta.");
+    }
+}
+
 function processNav(pos) {
     const { latitude, longitude, heading, speed } = pos.coords;
     const spdKmH = Math.round((speed || 0) * 3.6);
     
-    // Auto-Rotate & Pitch
+    // Vista 3D PRO: Zoom cerca e inclinación fuerte para visión de ruta
     mapInstance.easeTo({
         center: [longitude, latitude],
         bearing: heading !== null ? heading : mapInstance.getBearing(),
-        pitch: 60,
-        zoom: spdKmH > 60 ? 14 : 17,
+        pitch: 70, // Inclinación fuerte para 3D
+        zoom: spdKmH > 50 ? 16 : 18.5, // Zoom dinámico más cercano
         duration: 1000
     });
 
     document.getElementById('nav-speed').innerHTML = `${spdKmH} <small>km/h</small>`;
-    document.getElementById('nav-dist-total').innerHTML = formatDistance(totalDistance);
-
+    
     if (currentSteps[stepIndex]) {
         const step = currentSteps[stepIndex];
         const distToStep = calculateDistance(latitude, longitude, step.maneuver.location[1], step.maneuver.location[0]);
@@ -52,19 +61,19 @@ function processNav(pos) {
         document.getElementById('nav-text').textContent = step.maneuver.instruction;
         document.getElementById('nav-dist-next').textContent = formatDistance(distToStep);
         
-        // Progress bar
         const progress = (stepIndex / currentSteps.length) * 100;
         document.getElementById('nav-progress-bar').style.width = `${progress}%`;
 
-        // Instrucción por voz y vibración
-        if (distToStep < 150 && distToStep > 130) {
-            speak(`En 150 metros, ${step.maneuver.instruction}`);
-            if (navigator.vibrate) navigator.vibrate([200, 100, 200]);
+        // Avisos vocales automáticos
+        if (distToStep < 200 && distToStep > 180) {
+            speak(`En 200 metros, ${step.maneuver.instruction}`);
         }
 
-        if (distToStep < 20) {
+        if (distToStep < 30) {
             stepIndex++;
-            if (stepIndex >= currentSteps.length) {
+            if (stepIndex < currentSteps.length) {
+                speak(currentSteps[stepIndex].maneuver.instruction);
+            } else {
                 speak("Has llegado a tu destino.");
                 stopNavTracking();
             }
