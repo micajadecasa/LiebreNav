@@ -1,93 +1,73 @@
-let mapInstance = null;
-let userMarker = null;
-let routeLayerId = 'route';
+export let mapInstance = null;
+export let userMarker = null;
 
 export function initMap(containerId) {
-    const isDark = document.body.classList.contains('dark-mode');
-    const styleUrl = isDark 
-        ? 'https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json'
-        : 'https://basemaps.cartocdn.com/gl/voyager-gl-style/style.json';
+    return new Promise((resolve) => {
+        const isDark = document.body.classList.contains('dark-mode');
+        const styleUrl = isDark 
+            ? 'https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json'
+            : 'https://basemaps.cartocdn.com/gl/voyager-gl-style/style.json';
 
-    mapInstance = new maplibregl.Map({
-        container: containerId,
-        style: styleUrl,
-        center: [-3.7038, 40.4168], // Madrid default
-        zoom: parseInt(localStorage.getItem('pref-zoom')) || 12,
-        attributionControl: false
+        try {
+            mapInstance = new maplibregl.Map({
+                container: containerId,
+                style: styleUrl,
+                center: [-3.7038, 40.4168],
+                zoom: 12,
+                pitch: 0,
+                attributionControl: true
+            });
+
+            mapInstance.on('load', () => {
+                resolve(mapInstance);
+            });
+
+            // Fail-safe
+            setTimeout(() => resolve(mapInstance), 4000);
+        } catch (e) {
+            console.error("MapLibre Error:", e);
+            resolve(null);
+        }
     });
-
-    mapInstance.addControl(new maplibregl.NavigationControl(), 'top-right');
-    return mapInstance;
-}
-
-export function updateMapStyle(isDark) {
-    if (!mapInstance) return;
-    const styleUrl = isDark 
-        ? 'https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json'
-        : 'https://basemaps.cartocdn.com/gl/voyager-gl-style/style.json';
-    mapInstance.setStyle(styleUrl);
-}
-
-export function centerOnUser() {
-    if (!navigator.geolocation) return;
-    navigator.geolocation.getCurrentPosition(
-        pos => {
-            const coords = [pos.coords.longitude, pos.coords.latitude];
-            mapInstance.flyTo({ center: coords, zoom: 15 });
-            
-            if (userMarker) userMarker.remove();
-            
-            const el = document.createElement('div');
-            el.className = 'user-marker';
-            el.style.width = '20px';
-            el.style.height = '20px';
-            el.style.backgroundColor = '#2196F3';
-            el.style.borderRadius = '50%';
-            el.style.border = '3px solid white';
-            el.style.boxShadow = '0 0 10px rgba(0,0,0,0.5)';
-            
-            userMarker = new maplibregl.Marker({ element: el })
-                .setLngLat(coords)
-                .addTo(mapInstance);
-        },
-        err => console.error('Error getting location', err),
-        { enableHighAccuracy: true }
-    );
 }
 
 export function drawRoute(geojson) {
-    if (mapInstance.getSource(routeLayerId)) {
-        mapInstance.getSource(routeLayerId).setData(geojson);
-    } else {
-        mapInstance.addSource(routeLayerId, {
-            type: 'geojson',
-            data: geojson
-        });
-        mapInstance.addLayer({
-            id: routeLayerId,
-            type: 'line',
-            source: routeLayerId,
-            layout: {
-                'line-join': 'round',
-                'line-cap': 'round'
-            },
-            paint: {
-                'line-color': '#2196F3',
-                'line-width': 5
-            }
-        });
-    }
-
-    const coordinates = geojson.features[0].geometry.coordinates;
-    const bounds = coordinates.reduce((bounds, coord) => {
-        return bounds.extend(coord);
-    }, new maplibregl.LngLatBounds(coordinates[0], coordinates[0]));
-    
-    mapInstance.fitBounds(bounds, { padding: 50 });
+    if (!mapInstance || !mapInstance.isStyleLoaded()) return;
+    try {
+        if (mapInstance.getSource('route')) {
+            mapInstance.getSource('route').setData(geojson);
+        } else {
+            mapInstance.addSource('route', { type: 'geojson', data: geojson });
+            mapInstance.addLayer({
+                id: 'route',
+                type: 'line',
+                source: 'route',
+                layout: { 'line-join': 'round', 'line-cap': 'round' },
+                paint: { 'line-color': '#007AFF', 'line-width': 6 }
+            });
+        }
+        const coords = geojson.features[0].geometry.coordinates;
+        const bounds = coords.reduce((b, c) => b.extend(c), new maplibregl.LngLatBounds(coords[0], coords[0]));
+        mapInstance.fitBounds(bounds, { padding: 100 });
+    } catch (e) { console.warn("Route draw error"); }
 }
 
 export function clearRoute() {
-    if (mapInstance.getSource(routeLayerId)) {
-        mapInstance.getSource(routeLayerId).setData({ type: 'FeatureCollection', features: [] });
+    if (mapInstance && mapInstance.getSource('route')) {
+        mapInstance.getSource('route').setData({ type: 'FeatureCollection', features: [] });
+    }
+}
+
+export function updateUserMarker(lng, lat) {
+    if (!mapInstance) return;
+    if (!userMarker) {
+        const el = document.createElement('div');
+        el.className = 'user-pos';
+        el.style.width = '20px'; el.style.height = '20px';
+        el.style.background = '#007AFF'; el.style.border = '3px solid white';
+        el.style.borderRadius = '50%'; el.style.boxShadow = '0 0 10px rgba(0,0,0,0.5)';
+        userMarker = new maplibregl.Marker({ element: el }).setLngLat([lng, lat]).addTo(mapInstance);
+    } else {
+        userMarker.setLngLat([lng, lat]);
     }
 }
